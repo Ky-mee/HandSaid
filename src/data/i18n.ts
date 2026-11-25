@@ -23,6 +23,19 @@ export interface UiStrings {
   previewScrubLabel: string;
   matchLabel: string;
   previewModeBanner: string;
+  viewCharacter: string;
+  viewCloseup: string;
+  viewSide: string;
+  viewPov: string;
+  dragToRotateHint: string;
+  playGuide: string;
+  pauseGuide: string;
+  splitViewOn: string;
+  splitViewOff: string;
+  overlay2dOn: string;
+  overlay2dOff: string;
+  trail3dOn: string;
+  trail3dOff: string;
   loadingModelBanner: string;
   showHandPrompt: string;
   showBothHandsPrompt: string;
@@ -114,7 +127,20 @@ export const UI_STRINGS: Record<UiLang, UiStrings> = {
     nextSign: 'Next',
     previewScrubLabel: 'Motion frame',
     matchLabel: 'Match',
-    previewModeBanner: 'Preview mode — start camera to practice with live hand-follow coaching',
+    previewModeBanner: '3D Sign Coach — drag to rotate, switch angles, or start camera to practice live',
+    viewCharacter: 'Character',
+    viewCloseup: 'Hand close-up',
+    viewSide: 'Side 45°',
+    viewPov: 'Your POV',
+    dragToRotateHint: 'Drag to rotate 3D',
+    playGuide: 'Play',
+    pauseGuide: 'Pause',
+    splitViewOn: '3D + Camera',
+    splitViewOff: 'Camera only',
+    overlay2dOn: '2D guide on',
+    overlay2dOff: '2D guide off',
+    trail3dOn: 'Motion trail on',
+    trail3dOff: 'Motion trail off',
     loadingModelBanner: 'Loading on-device hand tracking model...',
     showHandPrompt: 'Raise one hand comfortably in frame to begin',
     showBothHandsPrompt: 'Bring both hands into frame for this sign',
@@ -221,7 +247,20 @@ export const UI_STRINGS: Record<UiLang, UiStrings> = {
     nextSign: 'Seterusnya',
     previewScrubLabel: 'Bingkai gerakan',
     matchLabel: 'Padanan',
-    previewModeBanner: 'Mod pratonton — buka kamera untuk latihan langsung ikut gerakan tangan',
+    previewModeBanner: 'Jurulatih Isyarat 3D — seret untuk pusing, tukar sudut, atau buka kamera untuk latihan langsung',
+    viewCharacter: 'Watak',
+    viewCloseup: 'Dekat tangan',
+    viewSide: 'Sisi 45°',
+    viewPov: 'Sudut anda',
+    dragToRotateHint: 'Seret untuk pusing 3D',
+    playGuide: 'Main',
+    pauseGuide: 'Jeda',
+    splitViewOn: '3D + Kamera',
+    splitViewOff: 'Kamera sahaja',
+    overlay2dOn: 'Panduan 2D aktif',
+    overlay2dOff: 'Panduan 2D mati',
+    trail3dOn: 'Laluan gerakan aktif',
+    trail3dOff: 'Laluan gerakan mati',
     loadingModelBanner: 'Memuatkan model penjejak tangan pada peranti...',
     showHandPrompt: 'Angkat sebelah tangan di hadapan kamera untuk mula',
     showBothHandsPrompt: 'Tunjukkan kedua-dua tangan di dalam bingkai kamera',

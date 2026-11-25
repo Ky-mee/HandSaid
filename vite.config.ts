@@ -3,6 +3,16 @@ import react from '@vitejs/plugin-react';
 import { VitePWA } from 'vite-plugin-pwa';
 
 export default defineConfig({
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          three: ['three'],
+          mediapipe: ['@mediapipe/tasks-vision']
+        }
+      }
+    }
+  },
   plugins: [
     react(),
     VitePWA({

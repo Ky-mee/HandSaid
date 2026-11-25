@@ -6,9 +6,12 @@ import {
   CheckCircle2,
   ChevronLeft,
   ChevronRight,
+  Columns2,
   Eye,
   EyeOff,
   FlipHorizontal2,
+  Pause,
+  Play,
   Volume2,
   VolumeX
 } from 'lucide-react';
@@ -19,6 +22,7 @@ import { MediaPipeHandTracker } from '../engine/handTracker';
 import { sampleSignAnimation } from '../engine/poseSynthesizer';
 import { DynamicMotionTracker, evaluateStaticSign } from '../engine/signRecognizer';
 import { playMatchChime } from '../utils/sound';
+import { SignAvatar3D } from './SignAvatar3D';
 
 interface CameraCoachStageProps {
   uiLang: UiLang;
@@ -67,10 +71,13 @@ export function CameraCoachStage({
   const dynamicTrackerRef = useRef(new DynamicMotionTracker());
   const breadcrumbRef = useRef<Array<[number, number]>>([]);
   const holdMsRef = useRef(0);
+  const holdProgressRef = useRef(0);
+  const matchedNowRef = useRef(false);
   const lastFrameTimeRef = useRef(0);
   const matchedCooldownRef = useRef(0);
   const loopProgressRef = useRef(0);
   const manualScrubRef = useRef<number | null>(null);
+  const pausedRef = useRef(false);
   const autoAdvanceTimerRef = useRef<number | null>(null);
 
   const [cameraActive, setCameraActive] = useState(false);
@@ -78,20 +85,27 @@ export function CameraCoachStage({
   const [loadingModel, setLoadingModel] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [score, setScore] = useState(0);
-  const [holdProgress, setHoldProgress] = useState(0);
   const [matchedNow, setMatchedNow] = useState(false);
   const [coachHint, setCoachHint] = useState<string>(t.previewModeBanner);
   const [scrubValue, setScrubValue] = useState<number>(0);
+  const [paused, setPaused] = useState(false);
+  const [show3dSplit, setShow3dSplit] = useState(true);
+
+  useEffect(() => {
+    pausedRef.current = paused;
+  }, [paused]);
 
   // Reset per-sign state on sign change
   useEffect(() => {
     dynamicTrackerRef.current.reset();
     breadcrumbRef.current = [];
     holdMsRef.current = 0;
+    holdProgressRef.current = 0;
+    matchedNowRef.current = false;
     matchedCooldownRef.current = 0;
     manualScrubRef.current = null;
+    loopProgressRef.current = 0;
     setScore(0);
-    setHoldProgress(0);
     setMatchedNow(false);
     setScrubValue(0);
     setCoachHint(
@@ -115,10 +129,12 @@ export function CameraCoachStage({
     if (videoRef.current) {
       videoRef.current.srcObject = null;
     }
+    holdMsRef.current = 0;
+    holdProgressRef.current = 0;
+    matchedNowRef.current = false;
     setCameraActive(false);
     setStartingCamera(false);
     setScore(0);
-    setHoldProgress(0);
     setMatchedNow(false);
     breadcrumbRef.current = [];
   }, []);
@@ -184,7 +200,7 @@ export function CameraCoachStage({
     };
   }, [stopCamera]);
 
-  // Main animation & MediaPipe inference loop
+  // Main animation timing & MediaPipe inference loop
   useEffect(() => {
     let rafId = 0;
 
@@ -193,112 +209,117 @@ export function CameraCoachStage({
       lastFrameTimeRef.current = now;
 
       const cycleMs = sign.mode === 'dynamic' ? 2400 / playbackSpeed : 3200 / playbackSpeed;
-      if (manualScrubRef.current === null) {
-        loopProgressRef.current = (loopProgressRef.current + dt / cycleMs) % 1;
-        setScrubValue(Math.round(loopProgressRef.current * 100));
-      } else {
+      if (manualScrubRef.current !== null) {
         loopProgressRef.current = manualScrubRef.current;
+      } else if (!pausedRef.current) {
+        loopProgressRef.current = (loopProgressRef.current + dt / cycleMs) % 1;
+        const pct = Math.round(loopProgressRef.current * 100);
+        setScrubValue((prev) => (prev === pct ? prev : pct));
       }
 
-      const sampled = sampleSignAnimation(sign, loopProgressRef.current);
-      let userHands: Point3D[][] = [];
-      let fingerStatus: Record<FingerName, 'match' | 'adjust'> | undefined;
-      let currentScore = 0;
-      let currentMatched = false;
+      if (cameraActive) {
+        const sampled = sampleSignAnimation(sign, loopProgressRef.current);
+        let userHands: Point3D[][] = [];
+        let fingerStatus: Record<FingerName, 'match' | 'adjust'> | undefined;
+        let currentScore = 0;
+        let currentMatched = false;
 
-      if (cameraActive && videoRef.current && trackerRef.current) {
-        const tracked = trackerRef.current.detect(videoRef.current, now, mirrorCamera);
-        if (tracked) {
-          userHands = tracked.hands;
-          if (userHands.length > 0) {
-            const center = userHands[0][9] ?? userHands[0][0];
-            breadcrumbRef.current.push([center.x, center.y]);
-            if (breadcrumbRef.current.length > 26) {
-              breadcrumbRef.current.shift();
-            }
-          } else {
-            breadcrumbRef.current = [];
-          }
-
-          if (sign.mode === 'static') {
-            const res = evaluateStaticSign(sign, userHands, uiLang);
-            currentScore = res.score;
-            fingerStatus = res.fingerStatus;
-            setScore(res.score);
-
-            if (res.matched) {
-              holdMsRef.current = Math.min(650, holdMsRef.current + dt);
-              setCoachHint(holdMsRef.current >= 650 ? t.matchedBanner : t.holdSteadyPrompt);
+        if (videoRef.current && trackerRef.current) {
+          const tracked = trackerRef.current.detect(videoRef.current, now, mirrorCamera);
+          if (tracked) {
+            userHands = tracked.hands;
+            if (userHands.length > 0) {
+              const center = userHands[0][9] ?? userHands[0][0];
+              breadcrumbRef.current.push([center.x, center.y]);
+              if (breadcrumbRef.current.length > 26) {
+                breadcrumbRef.current.shift();
+              }
             } else {
-              holdMsRef.current = Math.max(0, holdMsRef.current - dt * 1.6);
-              setCoachHint(res.hint || t.showHandPrompt);
+              breadcrumbRef.current = [];
             }
 
-            const progress = holdMsRef.current / 650;
-            setHoldProgress(progress);
-            currentMatched = progress >= 1;
-          } else {
-            const res = dynamicTrackerRef.current.update(sign, userHands, now, uiLang);
-            currentScore = res.score;
-            fingerStatus = res.fingerStatus;
-            setScore(res.score);
-            setHoldProgress(res.progress);
-            setCoachHint(res.hint || t.followTrailPrompt);
-            currentMatched = res.matched;
-          }
+            if (sign.mode === 'static') {
+              const res = evaluateStaticSign(sign, userHands, uiLang);
+              currentScore = res.score;
+              fingerStatus = res.fingerStatus;
+              setScore(res.score);
 
-          if (currentMatched && matchedCooldownRef.current <= 0) {
-            matchedCooldownRef.current = 2400;
-            setMatchedNow(true);
-            onSignMastered(sign.id);
-            if (soundEnabled) playMatchChime();
+              if (res.matched) {
+                holdMsRef.current = Math.min(650, holdMsRef.current + dt);
+                setCoachHint(holdMsRef.current >= 650 ? t.matchedBanner : t.holdSteadyPrompt);
+              } else {
+                holdMsRef.current = Math.max(0, holdMsRef.current - dt * 1.6);
+                setCoachHint(res.hint || t.showHandPrompt);
+              }
 
-            if (autoAdvance && hasNext) {
-              autoAdvanceTimerRef.current = window.setTimeout(() => {
-                onNextSign();
-              }, 1150);
+              const progress = holdMsRef.current / 650;
+              holdProgressRef.current = progress;
+              currentMatched = progress >= 1;
+            } else {
+              const res = dynamicTrackerRef.current.update(sign, userHands, now, uiLang);
+              currentScore = res.score;
+              fingerStatus = res.fingerStatus;
+              setScore(res.score);
+              holdProgressRef.current = res.progress;
+              setCoachHint(res.hint || t.followTrailPrompt);
+              currentMatched = res.matched;
+            }
+
+            if (currentMatched && matchedCooldownRef.current <= 0) {
+              matchedCooldownRef.current = 2400;
+              matchedNowRef.current = true;
+              setMatchedNow(true);
+              onSignMastered(sign.id);
+              if (soundEnabled) playMatchChime();
+
+              if (autoAdvance && hasNext) {
+                autoAdvanceTimerRef.current = window.setTimeout(() => {
+                  onNextSign();
+                }, 1150);
+              }
             }
           }
         }
-      }
 
-      if (matchedCooldownRef.current > 0) {
-        matchedCooldownRef.current = Math.max(0, matchedCooldownRef.current - dt);
-        if (matchedCooldownRef.current === 0) {
-          setMatchedNow(false);
+        if (matchedCooldownRef.current > 0) {
+          matchedCooldownRef.current = Math.max(0, matchedCooldownRef.current - dt);
+          if (matchedCooldownRef.current === 0) {
+            matchedNowRef.current = false;
+            setMatchedNow(false);
+          }
         }
-      }
 
-      const canvas = canvasRef.current;
-      if (canvas) {
-        const rect = canvas.getBoundingClientRect();
-        const dpr = Math.min(window.devicePixelRatio || 1, 2);
-        const targetW = Math.max(320, Math.round(rect.width * dpr));
-        const targetH = Math.max(240, Math.round(rect.height * dpr));
-        if (canvas.width !== targetW || canvas.height !== targetH) {
-          canvas.width = targetW;
-          canvas.height = targetH;
-        }
-        const ctx = canvas.getContext('2d');
-        if (ctx) {
-          renderStageCanvas({
-            ctx,
-            width: canvas.width,
-            height: canvas.height,
-            video: videoRef.current,
-            cameraActive,
-            mirror: mirrorCamera,
-            showGhost,
-            ghostPrimary: sampled.primary,
-            ghostSecondary: sampled.secondary,
-            trailPoints: sampled.trailPoints,
-            currentTrailAnchor: sampled.currentAnchor,
-            userHands,
-            userBreadcrumbTrail: cameraActive ? breadcrumbRef.current : undefined,
-            fingerStatus,
-            holdProgress: matchedNow ? 1 : currentScore > 0 ? holdProgress : 0,
-            matched: matchedNow
-          });
+        const canvas = canvasRef.current;
+        if (canvas) {
+          const rect = canvas.getBoundingClientRect();
+          const dpr = Math.min(window.devicePixelRatio || 1, 2);
+          const targetW = Math.max(320, Math.round(rect.width * dpr));
+          const targetH = Math.max(240, Math.round(rect.height * dpr));
+          if (canvas.width !== targetW || canvas.height !== targetH) {
+            canvas.width = targetW;
+            canvas.height = targetH;
+          }
+          const ctx = canvas.getContext('2d');
+          if (ctx) {
+            renderStageCanvas({
+              ctx,
+              width: canvas.width,
+              height: canvas.height,
+              video: videoRef.current,
+              cameraActive,
+              mirror: mirrorCamera,
+              showGhost,
+              ghostPrimary: sampled.primary,
+              ghostSecondary: sampled.secondary,
+              trailPoints: sampled.trailPoints,
+              currentTrailAnchor: sampled.currentAnchor,
+              userHands,
+              userBreadcrumbTrail: breadcrumbRef.current,
+              fingerStatus,
+              holdProgress: matchedNowRef.current ? 1 : currentScore > 0 ? holdProgressRef.current : 0,
+              matched: matchedNowRef.current
+            });
+          }
         }
       }
 
@@ -311,8 +332,6 @@ export function CameraCoachStage({
     autoAdvance,
     cameraActive,
     hasNext,
-    holdProgress,
-    matchedNow,
     mirrorCamera,
     onNextSign,
     onSignMastered,
@@ -329,6 +348,7 @@ export function CameraCoachStage({
 
   const handleScrubChange = (val: number) => {
     manualScrubRef.current = val / 100;
+    loopProgressRef.current = val / 100;
     setScrubValue(val);
   };
 
@@ -336,46 +356,98 @@ export function CameraCoachStage({
     manualScrubRef.current = null;
   };
 
+  const show3dPane = !cameraActive || show3dSplit;
+
   return (
-    <section className="stage-card" aria-label="Interactive camera practice stage">
-      <div className="stage-viewport">
-        <video ref={videoRef} className="stage-video-hidden" playsInline muted />
-        <canvas ref={canvasRef} className="stage-canvas" />
+    <section className="stage-card" aria-label="Interactive 3D and camera practice stage">
+      <video ref={videoRef} className="stage-video-hidden" playsInline muted />
 
-        <div className="stage-top-hud">
-          <div className="stage-sign-badge">
-            <div className="stage-sign-title-row">
-              <span className="stage-sign-title">{sign.title}</span>
-              <span className="stage-sign-gloss">
-                {uiLang === 'bm' ? sign.glossBm : sign.glossEn}
-              </span>
-            </div>
-          </div>
+      {!cameraActive ? (
+        <div className="stage-viewport">
+          <SignAvatar3D
+            sign={sign}
+            uiLang={uiLang}
+            loopProgressRef={loopProgressRef}
+            showTrail={showGhost}
+            paused={paused}
+            onTogglePaused={() => setPaused((p) => !p)}
+          />
 
-          {cameraActive && (
-            <div className="stage-score-box">
-              <div>
-                <span className="stage-score-label">{t.matchLabel}</span>
-                <span className="stage-score-num">{score}%</span>
+          <div className="stage-top-hud">
+            <div className="stage-sign-badge">
+              <div className="stage-sign-title-row">
+                <span className="stage-sign-title">{sign.title}</span>
+                <span className="stage-sign-gloss">
+                  {uiLang === 'bm' ? sign.glossBm : sign.glossEn}
+                </span>
               </div>
             </div>
-          )}
-        </div>
+          </div>
 
-        <div className="stage-bottom-hud">
-          <div
-            className={`coach-pill ${
-              matchedNow ? 'is-matched' : !cameraActive ? 'is-preview' : ''
-            }`}
-          >
-            {matchedNow && <CheckCircle2 size={16} />}
-            <span>{loadingModel ? t.loadingModelBanner : coachHint}</span>
+          <div className="stage-bottom-hud">
+            <div className="coach-pill is-preview">
+              <span>{coachHint}</span>
+            </div>
           </div>
         </div>
-      </div>
+      ) : (
+        <div className={show3dSplit ? 'stage-split-layout' : ''}>
+          {show3dSplit && (
+            <div className="stage-viewport is-split-3d">
+              <SignAvatar3D
+                sign={sign}
+                uiLang={uiLang}
+                loopProgressRef={loopProgressRef}
+                showTrail={showGhost}
+                compact
+                paused={paused}
+                onTogglePaused={() => setPaused((p) => !p)}
+              />
+            </div>
+          )}
 
-      {!cameraActive && (
+          <div className={`stage-viewport ${show3dSplit ? 'is-split-cam' : ''}`}>
+            <canvas ref={canvasRef} className="stage-canvas" />
+
+            <div className="stage-top-hud">
+              <div className="stage-sign-badge">
+                <div className="stage-sign-title-row">
+                  <span className="stage-sign-title">{sign.title}</span>
+                  <span className="stage-sign-gloss">
+                    {uiLang === 'bm' ? sign.glossBm : sign.glossEn}
+                  </span>
+                </div>
+              </div>
+
+              <div className="stage-score-box">
+                <div>
+                  <span className="stage-score-label">{t.matchLabel}</span>
+                  <span className="stage-score-num">{score}%</span>
+                </div>
+              </div>
+            </div>
+
+            <div className="stage-bottom-hud">
+              <div className={`coach-pill ${matchedNow ? 'is-matched' : ''}`}>
+                {matchedNow && <CheckCircle2 size={16} />}
+                <span>{loadingModel ? t.loadingModelBanner : coachHint}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {show3dPane && (
         <div className="stage-scrubber">
+          <button
+            type="button"
+            className="btn btn-sm"
+            onClick={() => setPaused((p) => !p)}
+            aria-label={paused ? t.playGuide : t.pauseGuide}
+          >
+            {paused ? <Play size={14} /> : <Pause size={14} />}
+            <span>{paused ? t.playGuide : t.pauseGuide}</span>
+          </button>
           <span>{t.previewScrubLabel}</span>
           <input
             type="range"
@@ -417,13 +489,32 @@ export function CameraCoachStage({
             </button>
           )}
 
+          {cameraActive && (
+            <button
+              type="button"
+              className={`btn btn-sm btn-toggle ${show3dSplit ? 'is-on' : ''}`}
+              onClick={() => setShow3dSplit((v) => !v)}
+            >
+              <Columns2 size={15} />
+              <span>{show3dSplit ? t.splitViewOn : t.splitViewOff}</span>
+            </button>
+          )}
+
           <button
             type="button"
             className={`btn btn-sm btn-toggle ${showGhost ? 'is-on' : ''}`}
             onClick={onToggleGhost}
           >
             {showGhost ? <Eye size={15} /> : <EyeOff size={15} />}
-            <span>{showGhost ? t.ghostOn : t.ghostOff}</span>
+            <span>
+              {cameraActive
+                ? showGhost
+                  ? t.overlay2dOn
+                  : t.overlay2dOff
+                : showGhost
+                  ? t.trail3dOn
+                  : t.trail3dOff}
+            </span>
           </button>
 
           <button
