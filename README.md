@@ -4,13 +4,12 @@
 
 ## Features
 
-- **Live Camera Hand-Follow Coach**
-  - On-device two-hand tracking powered by `@mediapipe/tasks-vision` (`HandLandmarker`).
-  - Translucent amber ghost-hand guide, animated motion trails with directional arrows and target bead, per-finger match/adjust feedback (jade/coral), live breadcrumb trail, and a hold-progress ring.
-  - Camera-free preview mode with a `0–100%` motion scrubber and `0.5× / 1×` speed toggle, mirror flip, Web Audio match chime, and auto-advance.
-- **Built-in Bilingual Sign Packs (108 Signs)**
-  - **Malaysian Sign Language (BIM):** 54 signs (`A–Z`, `0–9`, and 18 everyday signs).
-  - **American Sign Language (ASL):** 54 signs (`A–Z`, `0–9`, and 18 everyday signs).
+- **Interactive 3D Signing Character & Hand Coach**
+  - Sleek stylized Three.js upper-body coach with anatomical 2-bone IK, physiological joint/wrist/anti-clipping limits, articulated dorsal/palm hand rigs, facial cues, 3D amber motion trails, and 4 orbitable camera presets (*Character*, *Hand close-up*, *Side 45°*, *Your POV*).
+  - Side-by-side **3D + Camera Split View** with on-device two-hand MediaPipe tracking (`HandLandmarker`), per-finger match/adjust feedback, hold-progress ring, `0–100%` scrubber, and `0.5× / 1×` speed toggle.
+- **Built-in Bilingual Sign Packs (152 Signs)**
+  - **Malaysian Sign Language (BIM):** 76 signs (`A–Z`, `0–9`, 24 Everyday, 8 Family & People, 8 Feelings & Needs).
+  - **American Sign Language (ASL):** 76 signs (`A–Z`, `0–9`, 24 Everyday, 8 Family & People, 8 Feelings & Needs).
   - Full **English & Bahasa Melayu (EN / BM)** interface, descriptions, coaching hints, and facial/posture cues.
 - **World Sign Language Atlas**
   - Searchable directory of **32 world sign languages** across 7 regions with ISO codes, native names, alphabet-system metadata, and direct links to practice or record.

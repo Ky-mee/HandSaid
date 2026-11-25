@@ -1,6 +1,14 @@
 import type { HandPoseSpec, Point3D, SignDefinition } from '../../data/types';
 import { extractHandFeatures } from '../handFeatures';
-import type { CharacterPose3D, FacialExpression3D, HandTarget3D, Vec3 } from './types3d';
+import { EXTRA_CHOREOGRAPHY } from './extraChoreography3d';
+import type {
+  CharacterPose3D,
+  Choreography3D,
+  FacialExpression3D,
+  HandTarget3D,
+  Keyframe3D,
+  Vec3
+} from './types3d';
 
 const CHIN: Vec3 = [-0.01, 0.30, 0.20];
 const MOUTH: Vec3 = [-0.01, 0.34, 0.21];
@@ -47,23 +55,6 @@ const H_POSE: HandPoseSpec = {
   spreads: { indexMiddle: 0.04 },
   thumbAcross: true
 };
-
-interface Keyframe3D {
-  t: number;
-  rightPos: Vec3;
-  rightRot: Vec3;
-  rightPose: HandPoseSpec;
-  leftPos?: Vec3;
-  leftRot?: Vec3;
-  leftPose?: HandPoseSpec;
-  expression?: Partial<FacialExpression3D>;
-}
-
-interface Choreography3D {
-  twoHands: boolean;
-  baseExpression?: Partial<FacialExpression3D>;
-  keyframes: Keyframe3D[];
-}
 
 function clamp(v: number, lo: number, hi: number): number {
   return Math.max(lo, Math.min(hi, v));
@@ -1131,6 +1122,9 @@ function buildChoreographyFromGenericSign(sign: SignDefinition): Choreography3D 
 function getChoreography(sign: SignDefinition): Choreography3D {
   if (EVERYDAY_CHOREOGRAPHY[sign.id]) {
     return EVERYDAY_CHOREOGRAPHY[sign.id];
+  }
+  if (EXTRA_CHOREOGRAPHY[sign.id]) {
+    return EXTRA_CHOREOGRAPHY[sign.id];
   }
   if (sign.category === 'alphabet' || sign.category === 'number') {
     return getAlphaNumChoreography(sign);

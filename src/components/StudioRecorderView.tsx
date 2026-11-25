@@ -577,6 +577,8 @@ export function StudioRecorderView({
                 >
                   <option value="custom">{t.catCustom}</option>
                   <option value="everyday">{t.catEveryday}</option>
+                  <option value="people">{t.catPeople}</option>
+                  <option value="feelings">{t.catFeelings}</option>
                   <option value="alphabet">{t.catAlphabet}</option>
                   <option value="number">{t.catNumber}</option>
                 </select>

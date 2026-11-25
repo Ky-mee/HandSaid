@@ -1,3 +1,9 @@
+import {
+  HUMAN_ANATOMY_LIMITS,
+  clampPointOutsideBody,
+  computeAnatomicalElbowPole,
+  computeDynamicShoulder
+} from './anatomyLimits';
 import type { Vec3 } from './types3d';
 
 function sub(a: Vec3, b: Vec3): Vec3 {
@@ -28,7 +34,8 @@ function normalize(v: Vec3): Vec3 {
 
 /**
  * Analytical 2-bone Inverse Kinematics solver for upper arm + forearm.
- * Guarantees finite elbow and wrist coordinates even for near or over-extended targets.
+ * Constrains reach within physiological elbow flexion limits (12°..142°)
+ * and guarantees finite elbow and wrist coordinates.
  */
 export function solveTwoBoneIK(
   shoulder: Vec3,
@@ -41,8 +48,19 @@ export function solveTwoBoneIK(
   const rawDist = len(rawDelta);
   const dir = rawDist > 1e-6 ? scale(rawDelta, 1 / rawDist) : ([0, -1, 0] as Vec3);
 
-  const minReach = Math.abs(upperLen - lowerLen) + 0.02;
-  const maxReach = upperLen + lowerLen - 0.005;
+  const minReach = Math.sqrt(
+    Math.max(
+      1e-4,
+      upperLen * upperLen +
+        lowerLen * lowerLen -
+        2 * upperLen * lowerLen * Math.cos(Math.PI - HUMAN_ANATOMY_LIMITS.elbowMaxFlexRad)
+    )
+  );
+  const maxReach = Math.sqrt(
+    upperLen * upperLen +
+      lowerLen * lowerLen -
+      2 * upperLen * lowerLen * Math.cos(Math.PI - HUMAN_ANATOMY_LIMITS.elbowMinFlexRad)
+  );
   const d = Math.max(minReach, Math.min(maxReach, rawDist));
 
   const wrist: Vec3 = add(shoulder, scale(dir, d));
@@ -59,7 +77,6 @@ export function solveTwoBoneIK(
   const proj = dot(toPole, dir);
   let bend = sub(toPole, scale(dir, proj));
   if (len(bend) < 1e-4) {
-    // Deterministic fallback perpendicular vector if target aligns with poleHint
     const fallback: Vec3 = Math.abs(dir[1]) < 0.9 ? [0, -1, -0.5] : [0, 0, -1];
     const fProj = dot(fallback, dir);
     bend = sub(fallback, scale(dir, fProj));
@@ -71,4 +88,35 @@ export function solveTwoBoneIK(
   const elbow: Vec3 = add(add(shoulder, scale(dir, along)), scale(bendDir, out));
 
   return { elbow, wrist };
+}
+
+/**
+ * Full anatomical arm IK combining dynamic clavicular shoulder lift/protraction,
+ * torso/head anti-clipping keep-out shells, adaptive elbow pole placement,
+ * and physiological elbow flexion limits.
+ */
+export function solveAnatomicalArmIK(
+  side: 'right' | 'left',
+  targetWrist: Vec3,
+  upperLen: number,
+  lowerLen: number
+): { shoulder: Vec3; elbow: Vec3; wrist: Vec3 } {
+  const safeTarget = clampPointOutsideBody(targetWrist, 0.025);
+  const shoulder = computeDynamicShoulder(side, safeTarget);
+  const pole = computeAnatomicalElbowPole(side, safeTarget);
+
+  const first = solveTwoBoneIK(shoulder, safeTarget, upperLen, lowerLen, pole);
+  const safeElbow = clampPointOutsideBody(first.elbow, 0.032);
+
+  if (
+    safeElbow[0] === first.elbow[0] &&
+    safeElbow[1] === first.elbow[1] &&
+    safeElbow[2] === first.elbow[2]
+  ) {
+    return { shoulder, elbow: first.elbow, wrist: first.wrist };
+  }
+
+  // Re-project elbow along corrected pole if torso shell nudged it
+  const second = solveTwoBoneIK(shoulder, first.wrist, upperLen, lowerLen, safeElbow);
+  return { shoulder, elbow: second.elbow, wrist: second.wrist };
 }

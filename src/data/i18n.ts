@@ -56,6 +56,8 @@ export interface UiStrings {
   catAlphabet: string;
   catNumber: string;
   catEveryday: string;
+  catPeople: string;
+  catFeelings: string;
   catCustom: string;
   searchSignsPlaceholder: string;
   noSignsFound: string;
@@ -163,6 +165,8 @@ export const UI_STRINGS: Record<UiLang, UiStrings> = {
     catAlphabet: 'Alphabet A–Z',
     catNumber: 'Numbers 0–9',
     catEveryday: 'Everyday',
+    catPeople: 'Family & People',
+    catFeelings: 'Feelings & Needs',
     catCustom: 'My Signs',
     searchSignsPlaceholder: 'Search signs or meanings...',
     noSignsFound: 'No signs match your filter.',
@@ -283,6 +287,8 @@ export const UI_STRINGS: Record<UiLang, UiStrings> = {
     catAlphabet: 'Abjad A–Z',
     catNumber: 'Nombor 0–9',
     catEveryday: 'Harian',
+    catPeople: 'Keluarga & Orang',
+    catFeelings: 'Perasaan & Keperluan',
     catCustom: 'Isyarat Saya',
     searchSignsPlaceholder: 'Cari isyarat atau maksud...',
     noSignsFound: 'Tiada isyarat sepadan dengan carian.',

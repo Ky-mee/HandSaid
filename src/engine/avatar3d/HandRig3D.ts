@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import type { FingerName, HandPoseSpec } from '../../data/types';
+import { clamp, clampFingerAngles, clampThumbAngles } from './anatomyLimits';
 
 type NonThumbFinger = Exclude<FingerName, 'thumb'>;
 
@@ -7,8 +8,6 @@ interface FingerChain {
   mcp: THREE.Group;
   pip: THREE.Group;
   dip: THREE.Group;
-  baseX: number;
-  baseSplayZ: number;
 }
 
 interface ThumbChain {
@@ -17,17 +16,13 @@ interface ThumbChain {
   ip: THREE.Group;
 }
 
-function clamp(v: number, lo: number, hi: number): number {
-  return Math.max(lo, Math.min(hi, v));
-}
-
 function lerp(a: number, b: number, t: number): number {
   return a + (b - a) * t;
 }
 
 /**
- * Anatomically proportioned, articulated 3D hand rig with distinct dorsal/palm skin tones,
- * fingernails for unmistakable orientation, 3-phalanx fingers, and an opposable thumb.
+ * Sleek, anatomically proportioned, articulated 3D hand rig with contoured bevelled palm,
+ * tapered phalanges, smooth knuckle joints, oval dorsal nails, and strict human joint limits.
  *
  * Local coordinate convention (before wrist rotation):
  * - Wrist origin at (0, 0, 0)
@@ -49,23 +44,23 @@ export class HandRig3D {
     this.group.rotation.order = 'YXZ';
 
     const dorsalSkinMat = new THREE.MeshStandardMaterial({
-      color: 0xe7b490,
-      roughness: 0.62,
+      color: 0xe6b38f,
+      roughness: 0.56,
       metalness: 0.02
     });
     const palmSkinMat = new THREE.MeshStandardMaterial({
-      color: 0xf4ceb2,
-      roughness: 0.68,
+      color: 0xf4cfb4,
+      roughness: 0.62,
       metalness: 0.01
     });
     const nailMat = new THREE.MeshStandardMaterial({
-      color: 0xfbeae0,
-      roughness: 0.3,
-      metalness: 0.04
+      color: 0xfceee5,
+      roughness: 0.24,
+      metalness: 0.05
     });
     const creaseMat = new THREE.MeshStandardMaterial({
-      color: 0xd89f79,
-      roughness: 0.65,
+      color: 0xd9a17b,
+      roughness: 0.6,
       metalness: 0.02
     });
     this.materials.push(dorsalSkinMat, palmSkinMat, nailMat, creaseMat);
@@ -78,12 +73,11 @@ export class HandRig3D {
       y: number;
       lengths: [number, number, number];
       radius: number;
-      baseSplay: number;
     }> = [
-      { name: 'index', x: 0.0245 * this.sideSign, y: 0.088, lengths: [0.036, 0.024, 0.019], radius: 0.0082, baseSplay: -0.04 },
-      { name: 'middle', x: 0.0075 * this.sideSign, y: 0.092, lengths: [0.041, 0.027, 0.020], radius: 0.0085, baseSplay: 0.0 },
-      { name: 'ring', x: -0.010 * this.sideSign, y: 0.089, lengths: [0.038, 0.025, 0.019], radius: 0.0080, baseSplay: 0.03 },
-      { name: 'pinky', x: -0.0265 * this.sideSign, y: 0.082, lengths: [0.030, 0.020, 0.017], radius: 0.0070, baseSplay: 0.07 }
+      { name: 'index', x: 0.0245 * this.sideSign, y: 0.088, lengths: [0.036, 0.024, 0.019], radius: 0.0082 },
+      { name: 'middle', x: 0.0075 * this.sideSign, y: 0.092, lengths: [0.041, 0.027, 0.020], radius: 0.0085 },
+      { name: 'ring', x: -0.010 * this.sideSign, y: 0.089, lengths: [0.038, 0.025, 0.019], radius: 0.0080 },
+      { name: 'pinky', x: -0.0265 * this.sideSign, y: 0.081, lengths: [0.030, 0.020, 0.017], radius: 0.0070 }
     ];
 
     const fingerMap = {} as Record<NonThumbFinger, FingerChain>;
@@ -104,39 +98,65 @@ export class HandRig3D {
     palmMat: THREE.Material,
     creaseMat: THREE.Material
   ): void {
-    // Wrist base joint
-    const wristGeo = this.trackGeo(new THREE.SphereGeometry(0.023, 14, 12));
-    wristGeo.scale(1.15, 0.72, 0.65);
+    const s = this.sideSign;
+
+    // Smooth wrist blend collar
+    const wristGeo = this.trackGeo(new THREE.SphereGeometry(0.022, 16, 14));
+    wristGeo.scale(1.12, 0.72, 0.64);
     const wrist = new THREE.Mesh(wristGeo, creaseMat);
-    wrist.position.set(0, 0.006, 0);
+    wrist.position.set(0, 0.005, 0);
     this.group.add(wrist);
 
-    // Main palm body (dorsal)
-    const palmGeo = this.trackGeo(new THREE.BoxGeometry(0.068, 0.078, 0.022));
+    // Contoured bevelled palm silhouette (tapered wrist -> wider metacarpal arch)
+    const shape = new THREE.Shape();
+    shape.moveTo(-0.023 * s, 0.006);
+    shape.quadraticCurveTo(-0.034 * s, 0.044, -0.032 * s, 0.079);
+    shape.quadraticCurveTo(-0.014 * s, 0.090, 0.008 * s, 0.091);
+    shape.quadraticCurveTo(0.028 * s, 0.089, 0.034 * s, 0.078);
+    shape.quadraticCurveTo(0.036 * s, 0.042, 0.023 * s, 0.006);
+    shape.closePath();
+
+    const palmGeo = this.trackGeo(
+      new THREE.ExtrudeGeometry(shape, {
+        depth: 0.012,
+        bevelEnabled: true,
+        bevelThickness: 0.0055,
+        bevelSize: 0.0045,
+        bevelSegments: 4,
+        curveSegments: 16
+      })
+    );
+    palmGeo.translate(0, 0, -0.007);
     const palm = new THREE.Mesh(palmGeo, dorsalMat);
-    palm.position.set(0, 0.048, -0.002);
     this.group.add(palm);
 
-    // Rounded palm pad on +Z (lighter warm tone for instant front/back clarity)
-    const padGeo = this.trackGeo(new THREE.SphereGeometry(0.036, 16, 14));
-    padGeo.scale(0.95, 1.05, 0.34);
+    // Soft convex inner palm pad on +Z
+    const padGeo = this.trackGeo(new THREE.SphereGeometry(0.034, 18, 14));
+    padGeo.scale(0.95, 1.06, 0.32);
     const palmPad = new THREE.Mesh(padGeo, palmMat);
-    palmPad.position.set(0, 0.049, 0.007);
+    palmPad.position.set(0, 0.050, 0.0065);
     this.group.add(palmPad);
 
-    // Thenar eminence (fleshy thumb base mound on palm)
-    const thenarGeo = this.trackGeo(new THREE.SphereGeometry(0.019, 12, 10));
-    thenarGeo.scale(0.85, 1.25, 0.68);
+    // Sculpted thenar eminence (fleshy thumb base mound)
+    const thenarGeo = this.trackGeo(new THREE.SphereGeometry(0.019, 14, 12));
+    thenarGeo.scale(0.85, 1.28, 0.68);
     const thenar = new THREE.Mesh(thenarGeo, palmMat);
-    thenar.position.set(0.020 * this.sideSign, 0.034, 0.009);
-    thenar.rotation.z = -0.35 * this.sideSign;
+    thenar.position.set(0.020 * s, 0.034, 0.0085);
+    thenar.rotation.z = -0.34 * s;
     this.group.add(thenar);
 
-    // Knuckle ridge across top of palm
-    const ridgeGeo = this.trackGeo(new THREE.CapsuleGeometry(0.011, 0.052, 6, 12));
+    // Subtle hypothenar cushion along pinky edge
+    const hypoGeo = this.trackGeo(new THREE.SphereGeometry(0.014, 12, 10));
+    hypoGeo.scale(0.68, 1.75, 0.55);
+    const hypo = new THREE.Mesh(hypoGeo, palmMat);
+    hypo.position.set(-0.025 * s, 0.042, 0.005);
+    this.group.add(hypo);
+
+    // Rounded metacarpal knuckle arch
+    const ridgeGeo = this.trackGeo(new THREE.CapsuleGeometry(0.010, 0.048, 6, 12));
     ridgeGeo.rotateZ(Math.PI / 2);
     const ridge = new THREE.Mesh(ridgeGeo, dorsalMat);
-    ridge.position.set(-0.001 * this.sideSign, 0.084, -0.001);
+    ridge.position.set(-0.001 * s, 0.083, -0.001);
     this.group.add(ridge);
   }
 
@@ -147,7 +167,6 @@ export class HandRig3D {
       y: number;
       lengths: [number, number, number];
       radius: number;
-      baseSplay: number;
     },
     dorsalMat: THREE.Material,
     palmMat: THREE.Material,
@@ -160,52 +179,72 @@ export class HandRig3D {
     const [l1, l2, l3] = cfg.lengths;
     const r = cfg.radius;
 
-    // Proximal phalanx
-    const proxMesh = this.createPhalanx(l1, r, dorsalMat, palmMat);
+    // Smooth knuckle sphere + tapered proximal phalanx
+    const proxMesh = this.createTaperedPhalanx(l1, r, r * 0.88, dorsalMat, palmMat, false);
     mcp.add(proxMesh);
 
     const pip = new THREE.Group();
     pip.position.set(0, l1, 0);
     mcp.add(pip);
 
-    // Middle phalanx
-    const midMesh = this.createPhalanx(l2, r * 0.9, dorsalMat, palmMat);
+    // Tapered middle phalanx
+    const midMesh = this.createTaperedPhalanx(l2, r * 0.88, r * 0.78, dorsalMat, palmMat, false);
     pip.add(midMesh);
 
     const dip = new THREE.Group();
     dip.position.set(0, l2, 0);
     pip.add(dip);
 
-    // Distal phalanx + dorsal fingernail
-    const distMesh = this.createPhalanx(l3, r * 0.82, dorsalMat, palmMat);
+    // Tapered distal phalanx with rounded tip + sleek oval fingernail
+    const distMesh = this.createTaperedPhalanx(l3, r * 0.78, r * 0.64, dorsalMat, palmMat, true);
     dip.add(distMesh);
 
-    const nailGeo = this.trackGeo(new THREE.BoxGeometry(r * 1.15, l3 * 0.56, r * 0.35));
+    const nailGeo = this.trackGeo(new THREE.SphereGeometry(r * 0.62, 12, 10));
+    nailGeo.scale(0.95, 1.38, 0.28);
     const nail = new THREE.Mesh(nailGeo, nailMat);
-    nail.position.set(0, l3 * 0.62, -r * 0.72);
+    nail.position.set(0, l3 * 0.68, -r * 0.62);
     dip.add(nail);
 
-    return { mcp, pip, dip, baseX: cfg.x, baseSplayZ: cfg.baseSplay };
+    return { mcp, pip, dip };
   }
 
-  private createPhalanx(
+  private createTaperedPhalanx(
     length: number,
-    radius: number,
+    baseRadius: number,
+    tipRadius: number,
     dorsalMat: THREE.Material,
-    palmMat: THREE.Material
+    palmMat: THREE.Material,
+    roundTip: boolean
   ): THREE.Group {
     const g = new THREE.Group();
-    const cylLen = Math.max(0.004, length - radius * 0.6);
-    const bodyGeo = this.trackGeo(new THREE.CapsuleGeometry(radius, cylLen, 6, 10));
-    const body = new THREE.Mesh(bodyGeo, dorsalMat);
-    body.position.set(0, length * 0.5, 0);
-    g.add(body);
 
-    // Subtle palm-side pad so finger pads also catch light differently
-    const padGeo = this.trackGeo(new THREE.CapsuleGeometry(radius * 0.68, cylLen * 0.72, 4, 8));
+    // Joint sphere at proximal origin so bends never expose seams
+    const jointGeo = this.trackGeo(new THREE.SphereGeometry(baseRadius * 0.98, 12, 10));
+    const joint = new THREE.Mesh(jointGeo, dorsalMat);
+    g.add(joint);
+
+    // Tapered anatomical phalanx shaft
+    const shaftGeo = this.trackGeo(
+      new THREE.CylinderGeometry(tipRadius, baseRadius, length, 12, 1)
+    );
+    const shaft = new THREE.Mesh(shaftGeo, dorsalMat);
+    shaft.position.set(0, length * 0.5, 0);
+    g.add(shaft);
+
+    // Soft volar pad on +Z palm side
+    const padGeo = this.trackGeo(
+      new THREE.CapsuleGeometry(tipRadius * 0.72, Math.max(0.002, length * 0.58), 4, 8)
+    );
     const pad = new THREE.Mesh(padGeo, palmMat);
-    pad.position.set(0, length * 0.5, radius * 0.36);
+    pad.position.set(0, length * 0.52, baseRadius * 0.30);
     g.add(pad);
+
+    if (roundTip) {
+      const tipGeo = this.trackGeo(new THREE.SphereGeometry(tipRadius * 0.98, 12, 10));
+      const tip = new THREE.Mesh(tipGeo, dorsalMat);
+      tip.position.set(0, length, 0);
+      g.add(tip);
+    }
 
     return g;
   }
@@ -220,7 +259,7 @@ export class HandRig3D {
     this.group.add(cmc);
 
     const metaLen = 0.030;
-    const metaMesh = this.createPhalanx(metaLen, 0.010, dorsalMat, palmMat);
+    const metaMesh = this.createTaperedPhalanx(metaLen, 0.0102, 0.0094, dorsalMat, palmMat, false);
     cmc.add(metaMesh);
 
     const mcp = new THREE.Group();
@@ -228,7 +267,7 @@ export class HandRig3D {
     cmc.add(mcp);
 
     const proxLen = 0.025;
-    const proxMesh = this.createPhalanx(proxLen, 0.0092, dorsalMat, palmMat);
+    const proxMesh = this.createTaperedPhalanx(proxLen, 0.0094, 0.0086, dorsalMat, palmMat, false);
     mcp.add(proxMesh);
 
     const ip = new THREE.Group();
@@ -236,19 +275,20 @@ export class HandRig3D {
     mcp.add(ip);
 
     const distLen = 0.021;
-    const distMesh = this.createPhalanx(distLen, 0.0085, dorsalMat, palmMat);
+    const distMesh = this.createTaperedPhalanx(distLen, 0.0086, 0.0072, dorsalMat, palmMat, true);
     ip.add(distMesh);
 
-    const nailGeo = this.trackGeo(new THREE.BoxGeometry(0.010, 0.011, 0.003));
+    const nailGeo = this.trackGeo(new THREE.SphereGeometry(0.0056, 12, 10));
+    nailGeo.scale(0.95, 1.32, 0.28);
     const nail = new THREE.Mesh(nailGeo, nailMat);
-    nail.position.set(0, distLen * 0.62, -0.0064);
+    nail.position.set(0, distLen * 0.66, -0.0062);
     ip.add(nail);
 
     return { cmc, mcp, ip };
   }
 
   /**
-   * Apply a HandPoseSpec to the 3D articulated finger joints.
+   * Apply a HandPoseSpec to the 3D articulated finger joints with biomechanical limits.
    */
   public applyPose(spec: HandPoseSpec): void {
     const s = this.sideSign;
@@ -257,7 +297,7 @@ export class HandRig3D {
     const spreadRP = spec.spreads?.ringPinky ?? 0.1;
     const thumbSpread = spec.spreads?.thumb ?? 0.35;
 
-    // 1. Four fingers (positive X rotation flexes fingers forward toward +Z palm)
+    // 1. Four fingers (with anatomical range clamps, DIP coupling & splay attenuation)
     const fingerSplay: Record<NonThumbFinger, number> = {
       index: -0.06 - spreadIM * 0.24,
       middle: 0.04 * (spreadIM - spreadMR),
@@ -270,18 +310,20 @@ export class HandRig3D {
       const chain = this.fingers[name];
       let curl = clamp(spec.curls[name], 0, 1);
 
-      // Adjust pinch target finger slightly so thumb tip meets fingertip smoothly
       if (spec.pinchTo === name) {
         curl = Math.max(curl, 0.56);
       }
 
-      // Biomechanical joint flexion distribution
       let mcpFlex = curl * 1.48;
       let pipFlex = curl * 1.78;
       let dipFlex = curl * 1.25;
 
-      // For thumb-tuck signs (M, N, T), slightly soften MCP & increase PIP so fingers drape over thumb
-      if (spec.thumbTuckIndex && (name === 'index' || (name === 'middle' && spec.thumbTuckIndex >= 2) || (name === 'ring' && spec.thumbTuckIndex >= 3))) {
+      if (
+        spec.thumbTuckIndex &&
+        (name === 'index' ||
+          (name === 'middle' && spec.thumbTuckIndex >= 2) ||
+          (name === 'ring' && spec.thumbTuckIndex >= 3))
+      ) {
         mcpFlex = 1.18;
         pipFlex = 1.48;
         dipFlex = 1.05;
@@ -290,7 +332,6 @@ export class HandRig3D {
       let splayZ = -fingerSplay[name] * s;
       let zOffset = 0;
 
-      // Crossed middle over index (Letter R)
       if (spec.crossIndexMiddle) {
         if (name === 'index') {
           splayZ = 0.09 * s;
@@ -304,17 +345,24 @@ export class HandRig3D {
         }
       }
 
+      const clamped = clampFingerAngles(mcpFlex, pipFlex, dipFlex, splayZ);
       chain.mcp.position.z = zOffset;
-      chain.mcp.rotation.set(mcpFlex, 0, splayZ);
-      chain.pip.rotation.set(pipFlex, 0, 0);
-      chain.dip.rotation.set(dipFlex, 0, 0);
+      chain.mcp.rotation.set(clamped.mcpFlex, 0, clamped.splayZ);
+      chain.pip.rotation.set(clamped.pipFlex, 0, 0);
+      chain.dip.rotation.set(clamped.dipFlex, 0, 0);
     }
 
-    // 2. Thumb articulation (opposable CMC -> MCP -> IP)
+    // 2. Thumb articulation (canonical right-hand limits before side mirroring)
     const tCurl = clamp(spec.curls.thumb, 0, 1);
 
+    let cmcFlex = 0;
+    let cmcOppose = 0;
+    let cmcAbduct = 0;
+    let mcpFlex = 0;
+    let mcpSpread = 0;
+    let ipFlex = 0;
+
     if (spec.pinchTo) {
-      // Swing thumb across palm in opposition toward pinched fingertip
       const pinchTargetIndex: Record<NonThumbFinger, number> = {
         index: 0,
         middle: 1,
@@ -323,22 +371,39 @@ export class HandRig3D {
       };
       const targetIdx = pinchTargetIndex[spec.pinchTo];
       const acrossAngle = lerp(0.55, 1.08, targetIdx / 3);
-      this.thumb.cmc.rotation.set(0.75 + targetIdx * 0.08, -acrossAngle * s, -0.32 * s);
-      this.thumb.mcp.rotation.set(0.35 + tCurl * 0.28, 0, 0.28 * s);
-      this.thumb.ip.rotation.set(0.45 + tCurl * 0.35, 0, 0);
+      cmcFlex = 0.75 + targetIdx * 0.08;
+      cmcOppose = acrossAngle;
+      cmcAbduct = -0.32;
+      mcpFlex = 0.35 + tCurl * 0.28;
+      mcpSpread = 0.28;
+      ipFlex = 0.45 + tCurl * 0.35;
     } else if (spec.thumbAcross) {
       const tuck = spec.thumbTuckIndex ?? 0;
       const acrossReach = tuck > 0 ? lerp(0.52, 0.96, tuck / 3) : lerp(0.45, 0.85, tCurl);
-      this.thumb.cmc.rotation.set(0.62, -0.95 * s, -0.45 * s);
-      this.thumb.mcp.rotation.set(0.35, 0, acrossReach * 0.55 * s);
-      this.thumb.ip.rotation.set(0.32 + tCurl * 0.48, 0, 0);
+      cmcFlex = 0.62;
+      cmcOppose = 0.95;
+      cmcAbduct = -0.45;
+      mcpFlex = 0.35;
+      mcpSpread = acrossReach * 0.55;
+      ipFlex = 0.32 + tCurl * 0.48;
     } else {
-      // Abducted / relaxed thumb outward along radial edge
-      const abduct = (0.46 + thumbSpread * 0.45 - tCurl * 0.25) * s;
-      this.thumb.cmc.rotation.set(0.18 + tCurl * 0.35, -0.25 * s, -abduct);
-      this.thumb.mcp.rotation.set(0.12 + tCurl * 0.55, 0, 0.1 * s);
-      this.thumb.ip.rotation.set(0.1 + tCurl * 0.65, 0, 0);
+      const abduct = 0.46 + thumbSpread * 0.45 - tCurl * 0.25;
+      cmcFlex = 0.18 + tCurl * 0.35;
+      cmcOppose = 0.25;
+      cmcAbduct = -abduct;
+      mcpFlex = 0.12 + tCurl * 0.55;
+      mcpSpread = 0.1;
+      ipFlex = 0.1 + tCurl * 0.65;
     }
+
+    const clampedThumb = clampThumbAngles(cmcFlex, cmcOppose, cmcAbduct, mcpFlex, ipFlex);
+    this.thumb.cmc.rotation.set(
+      clampedThumb.cmcFlex,
+      -clampedThumb.cmcOppose * s,
+      clampedThumb.cmcAbduct * s
+    );
+    this.thumb.mcp.rotation.set(clampedThumb.mcpFlex, 0, mcpSpread * s);
+    this.thumb.ip.rotation.set(clampedThumb.ipFlex, 0, 0);
   }
 
   public dispose(): void {

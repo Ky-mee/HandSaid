@@ -51,6 +51,25 @@ function computePresetView(
   }
 }
 
+function createStudioBackdropTexture(): THREE.CanvasTexture | null {
+  const canvas = document.createElement('canvas');
+  canvas.width = 512;
+  canvas.height = 512;
+  const ctx = canvas.getContext('2d');
+  if (!ctx) return null;
+
+  const grad = ctx.createRadialGradient(256, 220, 40, 256, 256, 360);
+  grad.addColorStop(0, '#1B3148');
+  grad.addColorStop(0.55, '#112032');
+  grad.addColorStop(1, '#0A131E');
+  ctx.fillStyle = grad;
+  ctx.fillRect(0, 0, 512, 512);
+
+  const tex = new THREE.CanvasTexture(canvas);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  return tex;
+}
+
 export function SignAvatar3D({
   sign,
   uiLang,
@@ -131,7 +150,8 @@ export function SignAvatar3D({
     container.appendChild(renderer.domElement);
 
     const scene = new THREE.Scene();
-    scene.background = new THREE.Color(0x101b29);
+    const backdropTex = createStudioBackdropTexture();
+    scene.background = backdropTex ?? new THREE.Color(0x101b29);
 
     const initialW = Math.max(240, container.clientWidth);
     const initialH = Math.max(200, container.clientHeight);
@@ -158,7 +178,7 @@ export function SignAvatar3D({
     };
     controls.addEventListener('start', onControlStart);
 
-    // 3-point studio lighting so palm, thumb, and finger depths separate crisply
+    // 4-point studio lighting rig for sculpted palm, finger & face separation
     const hemiLight = new THREE.HemisphereLight(0xf6f9fc, 0x162436, 1.15);
     scene.add(hemiLight);
 
@@ -166,21 +186,25 @@ export function SignAvatar3D({
     keyLight.position.set(1.4, 2.0, 2.2);
     scene.add(keyLight);
 
-    const fillLight = new THREE.DirectionalLight(0xdbeafe, 0.75);
+    const fillLight = new THREE.DirectionalLight(0xdbeafe, 0.78);
     fillLight.position.set(-1.6, 0.9, 1.5);
     scene.add(fillLight);
 
-    const rimLight = new THREE.DirectionalLight(0x45d6bd, 0.95);
+    const rimLight = new THREE.DirectionalLight(0x45d6bd, 0.98);
     rimLight.position.set(-1.2, 1.4, -1.6);
     scene.add(rimLight);
 
-    // Subtle studio floor grid disc for spatial depth
+    const bounceLight = new THREE.DirectionalLight(0xfdf2e4, 0.42);
+    bounceLight.position.set(0.1, -0.8, 1.3);
+    scene.add(bounceLight);
+
+    // Sleek studio floor disc + subtle concentric ring
     const floorGeo = new THREE.CircleGeometry(0.92, 48);
     floorGeo.rotateX(-Math.PI / 2);
     const floorMat = new THREE.MeshStandardMaterial({
-      color: 0x152538,
-      roughness: 0.92,
-      metalness: 0.05
+      color: 0x132234,
+      roughness: 0.9,
+      metalness: 0.06
     });
     const floorMesh = new THREE.Mesh(floorGeo, floorMat);
     floorMesh.position.set(0, -0.34, 0.08);
@@ -191,7 +215,7 @@ export function SignAvatar3D({
     const gridRingMat = new THREE.MeshBasicMaterial({
       color: 0xe08e1b,
       transparent: true,
-      opacity: 0.22,
+      opacity: 0.24,
       side: THREE.DoubleSide
     });
     const gridRing = new THREE.Mesh(gridRingGeo, gridRingMat);
@@ -254,6 +278,7 @@ export function SignAvatar3D({
       controls.removeEventListener('start', onControlStart);
       controls.dispose();
       rig.dispose();
+      backdropTex?.dispose();
       floorGeo.dispose();
       floorMat.dispose();
       gridRingGeo.dispose();

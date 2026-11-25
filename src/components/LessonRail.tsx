@@ -132,6 +132,24 @@ export function LessonRail({
           >
             {t.catEveryday}
           </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={categoryFilter === 'people'}
+            className={`cat-tab ${categoryFilter === 'people' ? 'is-active' : ''}`}
+            onClick={() => onChangeCategory('people')}
+          >
+            {t.catPeople}
+          </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={categoryFilter === 'feelings'}
+            className={`cat-tab ${categoryFilter === 'feelings' ? 'is-active' : ''}`}
+            onClick={() => onChangeCategory('feelings')}
+          >
+            {t.catFeelings}
+          </button>
           {hasCustom && (
             <button
               type="button"
@@ -158,7 +176,12 @@ export function LessonRail({
         ) : (
           <div
             className={`sign-tile-grid ${
-              categoryFilter === 'everyday' || categoryFilter === 'custom' ? 'is-wide' : ''
+              categoryFilter === 'everyday' ||
+              categoryFilter === 'people' ||
+              categoryFilter === 'feelings' ||
+              categoryFilter === 'custom'
+                ? 'is-wide'
+                : ''
             }`}
           >
             {filteredSigns.map((sign) => {

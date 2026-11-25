@@ -59,7 +59,7 @@ export interface RecordedFrame {
   secondLandmarks?: Point3D[];
 }
 
-export type SignCategory = 'alphabet' | 'number' | 'everyday' | 'custom';
+export type SignCategory = 'alphabet' | 'number' | 'everyday' | 'people' | 'feelings' | 'custom';
 
 export interface SignDefinition {
   id: string;

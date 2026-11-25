@@ -35,3 +35,20 @@ export interface CharacterPose3D {
   currentRightAnchor: Vec3;
   focusCenter: Vec3;
 }
+
+export interface Keyframe3D {
+  t: number;
+  rightPos: Vec3;
+  rightRot: Vec3;
+  rightPose: HandPoseSpec;
+  leftPos?: Vec3;
+  leftRot?: Vec3;
+  leftPose?: HandPoseSpec;
+  expression?: Partial<FacialExpression3D>;
+}
+
+export interface Choreography3D {
+  twoHands: boolean;
+  baseExpression?: Partial<FacialExpression3D>;
+  keyframes: Keyframe3D[];
+}

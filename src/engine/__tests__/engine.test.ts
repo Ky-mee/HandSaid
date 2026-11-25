@@ -18,13 +18,13 @@ describe('HandSaid data packs', () => {
     }
   });
 
-  it('contains 54 BIM signs and 54 ASL signs with unique IDs and valid bilingual metadata', () => {
+  it('contains 76 BIM signs and 76 ASL signs with unique IDs and valid bilingual metadata', () => {
     const bim = BUILT_IN_SIGNS.filter((s) => s.languageId === 'bim');
     const asl = BUILT_IN_SIGNS.filter((s) => s.languageId === 'asl');
-    expect(bim.length).toBe(54);
-    expect(asl.length).toBe(54);
+    expect(bim.length).toBe(76);
+    expect(asl.length).toBe(76);
     const allIds = new Set(BUILT_IN_SIGNS.map((s) => s.id));
-    expect(allIds.size).toBe(108);
+    expect(allIds.size).toBe(152);
 
     for (const sign of BUILT_IN_SIGNS) {
       expect(sign.title.trim().length).toBeGreaterThan(0);
