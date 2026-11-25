@@ -1,4 +1,11 @@
-import type { AppPreferences, Point3D, RecordedFrame, SignDefinition } from '../data/types';
+import type {
+  AppPreferences,
+  Point3D,
+  PracticeActivity,
+  RecordedFrame,
+  SignDefinition,
+  TestSessionRecord
+} from '../data/types';
 
 const PROGRESS_KEY = 'handsaid.progress.v1';
 const LEGACY_PROGRESS_KEY = 'isyarat.progress.v1';
@@ -6,6 +13,8 @@ const CUSTOM_SIGNS_KEY = 'handsaid.customSigns.v1';
 const LEGACY_CUSTOM_SIGNS_KEY = 'isyarat.customSigns.v1';
 const PREFS_KEY = 'handsaid.prefs.v1';
 const LEGACY_PREFS_KEY = 'isyarat.prefs.v1';
+const TEST_HISTORY_KEY = 'handsaid.testHistory.v1';
+const ACTIVITY_KEY = 'handsaid.activity.v1';
 
 export type MasteryProgress = Record<string, string[]>;
 
@@ -187,4 +196,132 @@ export function importLanguagePackJson(rawJson: string): SignDefinition[] {
   const merged = Array.from(byId.values());
   localStorage.setItem(CUSTOM_SIGNS_KEY, JSON.stringify(merged));
   return valid;
+}
+
+export function loadTestHistory(): TestSessionRecord[] {
+  try {
+    const raw = localStorage.getItem(TEST_HISTORY_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw) as unknown;
+    if (!Array.isArray(parsed)) return [];
+    return parsed.filter((r): r is TestSessionRecord => {
+      if (!r || typeof r !== 'object') return false;
+      const obj = r as Record<string, unknown>;
+      return (
+        typeof obj.id === 'string' &&
+        typeof obj.languageId === 'string' &&
+        (obj.mode === 'camera-quiz' || obj.mode === 'visual-quiz' || obj.mode === 'statement') &&
+        typeof obj.dateIso === 'string' &&
+        typeof obj.totalQuestions === 'number' &&
+        typeof obj.correctCount === 'number' &&
+        typeof obj.accuracyPct === 'number' &&
+        typeof obj.durationSec === 'number'
+      );
+    });
+  } catch {
+    return [];
+  }
+}
+
+export function saveTestSession(record: TestSessionRecord): TestSessionRecord[] {
+  const existing = loadTestHistory().filter((r) => r.id !== record.id);
+  const next = [record, ...existing].slice(0, 30);
+  try {
+    localStorage.setItem(TEST_HISTORY_KEY, JSON.stringify(next));
+  } catch {
+    // Ignore storage quota issues
+  }
+  return next;
+}
+
+const DEFAULT_ACTIVITY: PracticeActivity = {
+  datesActive: [],
+  totalSignedCount: 0,
+  statementsBuilt: 0,
+  recentSignIds: []
+};
+
+export function getLocalDateKey(date = new Date()): string {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, '0');
+  const d = String(date.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
+}
+
+export function loadActivity(): PracticeActivity {
+  try {
+    const raw = localStorage.getItem(ACTIVITY_KEY);
+    if (!raw) return DEFAULT_ACTIVITY;
+    const parsed = JSON.parse(raw) as Partial<PracticeActivity>;
+    return {
+      datesActive: Array.isArray(parsed.datesActive)
+        ? parsed.datesActive.filter((d): d is string => typeof d === 'string')
+        : [],
+      totalSignedCount: typeof parsed.totalSignedCount === 'number' ? parsed.totalSignedCount : 0,
+      statementsBuilt: typeof parsed.statementsBuilt === 'number' ? parsed.statementsBuilt : 0,
+      recentSignIds: Array.isArray(parsed.recentSignIds) ? parsed.recentSignIds.slice(0, 12) : []
+    };
+  } catch {
+    return DEFAULT_ACTIVITY;
+  }
+}
+
+function saveActivity(activity: PracticeActivity): PracticeActivity {
+  try {
+    localStorage.setItem(ACTIVITY_KEY, JSON.stringify(activity));
+  } catch {
+    // Ignore storage quota issues
+  }
+  return activity;
+}
+
+export function recordSignActivity(languageId: string, signId: string): PracticeActivity {
+  const cur = loadActivity();
+  const today = getLocalDateKey();
+  const datesActive = cur.datesActive.includes(today) ? cur.datesActive : [...cur.datesActive, today];
+  const filteredRecent = cur.recentSignIds.filter(
+    (item) => !(item.languageId === languageId && item.signId === signId)
+  );
+  return saveActivity({
+    datesActive,
+    totalSignedCount: cur.totalSignedCount + 1,
+    statementsBuilt: cur.statementsBuilt,
+    recentSignIds: [{ languageId, signId, at: new Date().toISOString() }, ...filteredRecent].slice(0, 12)
+  });
+}
+
+export function recordStatementBuilt(): PracticeActivity {
+  const cur = loadActivity();
+  const today = getLocalDateKey();
+  const datesActive = cur.datesActive.includes(today) ? cur.datesActive : [...cur.datesActive, today];
+  return saveActivity({
+    datesActive,
+    totalSignedCount: cur.totalSignedCount,
+    statementsBuilt: cur.statementsBuilt + 1,
+    recentSignIds: cur.recentSignIds
+  });
+}
+
+/**
+ * Compute consecutive active days ending today (or yesterday if today hasn't had activity yet).
+ */
+export function computeStreakDays(datesActive: string[], todayKey = getLocalDateKey()): number {
+  if (datesActive.length === 0) return 0;
+  const set = new Set(datesActive);
+
+  const shiftDate = (isoDate: string, deltaDays: number): string => {
+    const [y, m, d] = isoDate.split('-').map(Number);
+    const dt = new Date(y, (m || 1) - 1, (d || 1) + deltaDays);
+    return getLocalDateKey(dt);
+  };
+
+  let cursor = set.has(todayKey) ? todayKey : shiftDate(todayKey, -1);
+  if (!set.has(cursor)) return 0;
+
+  let streak = 0;
+  while (set.has(cursor)) {
+    streak += 1;
+    cursor = shiftDate(cursor, -1);
+  }
+  return streak;
 }

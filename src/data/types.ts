@@ -107,7 +107,39 @@ export interface SignLanguageInfo {
   noteBm: string;
 }
 
-export type AppView = 'learn' | 'atlas' | 'studio';
+export type AppView = 'home' | 'dashboard' | 'learn' | 'test' | 'freecam' | 'atlas' | 'studio';
+
+export interface StatementTemplate {
+  id: string;
+  languageId: 'bim' | 'asl';
+  titleEn: string;
+  titleBm: string;
+  translationEn: string;
+  translationBm: string;
+  signIds: string[];
+}
+
+export interface TestSessionRecord {
+  id: string;
+  languageId: string;
+  mode: 'camera-quiz' | 'visual-quiz' | 'statement';
+  dateIso: string;
+  totalQuestions: number;
+  correctCount: number;
+  accuracyPct: number;
+  durationSec: number;
+}
+
+export interface PracticeActivity {
+  datesActive: string[];
+  totalSignedCount: number;
+  statementsBuilt: number;
+  recentSignIds: Array<{
+    languageId: string;
+    signId: string;
+    at: string;
+  }>;
+}
 
 export interface AppPreferences {
   uiLang: UiLang;

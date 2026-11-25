@@ -1,4 +1,13 @@
-import { BookOpen, Download, Globe2, Video } from 'lucide-react';
+import {
+  Award,
+  BookOpen,
+  Camera,
+  Download,
+  Globe2,
+  Home,
+  LayoutDashboard,
+  Video
+} from 'lucide-react';
 import { UI_STRINGS } from '../data/i18n';
 import type { AppView, SignLanguageInfo, UiLang } from '../data/types';
 
@@ -27,42 +36,46 @@ export function Header({
 }: HeaderProps) {
   const t = UI_STRINGS[uiLang];
 
+  const navItems: Array<{ id: AppView; label: string; icon: typeof Home }> = [
+    { id: 'home', label: t.navHome, icon: Home },
+    { id: 'dashboard', label: t.navDashboard, icon: LayoutDashboard },
+    { id: 'learn', label: t.navLearn, icon: BookOpen },
+    { id: 'test', label: t.navTest, icon: Award },
+    { id: 'freecam', label: t.navFreeCam, icon: Camera },
+    { id: 'atlas', label: t.navAtlas, icon: Globe2 },
+    { id: 'studio', label: t.navStudio, icon: Video }
+  ];
+
   return (
     <header className="site-header">
       <div className="header-inner">
-        <div className="brand-group">
+        <button
+          type="button"
+          className="brand-group brand-button"
+          onClick={() => onChangeView('home')}
+        >
           <img className="brand-mark" src="/favicon.svg" alt="HandSaid emblem" />
-          <div>
+          <div style={{ textAlign: 'left' }}>
             <div className="brand-name">HandSaid</div>
             <div className="brand-sub">{t.brandSub}</div>
           </div>
-        </div>
+        </button>
 
         <nav className="nav-tabs" aria-label="Main navigation">
-          <button
-            type="button"
-            className={`nav-tab ${activeView === 'learn' ? 'is-active' : ''}`}
-            onClick={() => onChangeView('learn')}
-          >
-            <BookOpen size={16} />
-            <span>{t.navLearn}</span>
-          </button>
-          <button
-            type="button"
-            className={`nav-tab ${activeView === 'atlas' ? 'is-active' : ''}`}
-            onClick={() => onChangeView('atlas')}
-          >
-            <Globe2 size={16} />
-            <span>{t.navAtlas}</span>
-          </button>
-          <button
-            type="button"
-            className={`nav-tab ${activeView === 'studio' ? 'is-active' : ''}`}
-            onClick={() => onChangeView('studio')}
-          >
-            <Video size={16} />
-            <span>{t.navStudio}</span>
-          </button>
+          {navItems.map((item) => {
+            const Icon = item.icon;
+            return (
+              <button
+                key={item.id}
+                type="button"
+                className={`nav-tab ${activeView === item.id ? 'is-active' : ''}`}
+                onClick={() => onChangeView(item.id)}
+              >
+                <Icon size={15} />
+                <span>{item.label}</span>
+              </button>
+            );
+          })}
         </nav>
 
         <div className="header-actions">

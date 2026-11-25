@@ -4,6 +4,13 @@
 
 ## Features
 
+- **Home & Personal Dashboard**
+  - Interactive landing page with a live 3D Showcase Coach and featured statement previews.
+  - Learning Dashboard with overall mastery ring, category progress bars, daily streak tracking, recommended next signs, and skill test history.
+- **Skill Test & Statement Challenge**
+  - Blind **Camera Skill Test** (with optional 3D hint peek), no-camera **3D Visual Quiz**, and **Statement Challenge & Custom Composer** with sequential 3D playback and live step-by-step camera performance.
+- **Free Camera Sign & Statement Builder**
+  - Continuous multi-sign webcam recognition (`Words & Phrases`, `Letters & Numbers` fingerspelling, or `All Signs`) with top-3 live candidates, stability lock-in, automatic word/statement formatting, Web Speech readout, and 3D replay.
 - **Interactive 3D Signing Character & Hand Coach**
   - Sleek stylized Three.js upper-body coach with anatomical 2-bone IK, physiological joint/wrist/anti-clipping limits, articulated dorsal/palm hand rigs, facial cues, 3D amber motion trails, and 4 orbitable camera presets (*Character*, *Hand close-up*, *Side 45°*, *Your POV*).
   - Side-by-side **3D + Camera Split View** with on-device two-hand MediaPipe tracking (`HandLandmarker`), per-finger match/adjust feedback, hold-progress ring, `0–100%` scrubber, and `0.5× / 1×` speed toggle.
