@@ -1,0 +1,14 @@
+# Dependencies & build output
+node_modules/
+dist/
+public/mediapipe/wasm/
+
+# Vite / local artifacts
+.vite/
+*.local
+.env
+.env.*
+
+# OS files
+.DS_Store
+Thumbs.db
